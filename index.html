@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Alquimia Urbana · board del grupo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/estilo.css">
+<style>
+/* extras mínimos del board grupal (solo presentación) */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;}
+.pcard{background:#fff;border:1px solid var(--linea);border-radius:10px;border-left:5px solid var(--piedra);padding:14px 16px;display:flex;flex-direction:column;gap:8px;}
+.pcard.verde{border-left-color:var(--verde);} .pcard.amar{border-left-color:var(--amar);} .pcard.rojo{border-left-color:var(--rojo);}
+.pcard h4{margin:0;font-family:Kefa-Regular,Georgia,serif;font-weight:normal;font-size:19px;line-height:1.15;}
+.pcard .fila{font-size:12.5px;}
+.pcard .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:6px;}
+.pcard .btns a{text-decoration:none;}
+.resprow{padding:9px 0;border-top:1px solid var(--arena);font-size:12.5px;}
+.resprow:first-child{border-top:0;}
+.ptag{display:inline-block;font-size:9px;letter-spacing:.5px;text-transform:uppercase;border-radius:9px;padding:1px 7px;background:var(--negro);color:#fff;margin-right:6px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><span class="serif t">ALQUIMIA URBANA</span>
+    <span class="sub">PG Arquitectos · Aurum Arquitectos · YoDesarrollo</span></div>
+  <div class="hbtns">
+    <div id="badge" data-s="loading" title="clic = refrescar datos"><span class="dot"></span><span id="badgeTxt">cargando</span></div>
+  </div>
+</header>
+<main id="app"></main>
+<footer>Alquimia Urbana · board del grupo — todo se administra desde el Sheet Registro (agregar proyecto = agregar fila; sus carpetas de Drive se crean solas).<div id="stamp" style="margin-top:4px;"></div></footer>
+<div id="toast"></div>
+<script>
+(function(){
+"use strict";
+/* La clave NO vive aquí: la teclea el usuario y la valida el
+   SERVIDOR contra CONFIG.clave del Sheet Registro (sheet-driven).
+   Solo se guarda localmente la clave ya aceptada. */
+var CONFIG={EXEC_URL:"https://script.google.com/macros/s/AKfycbwIkonz5lbmtdQQw33foXc_5DRDwoTiuaJgoM7LQILtRN1lx9uFUAhb-jgJhCnRzfPQ/exec"};
+var KEY_STORE="au_clave_v1", FETCH_TIMEOUT=15000;
+
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function safeUrl(u){u=String(u==null?"":u).trim();return /^https:\/\//i.test(u)?u:"";}
+function money(n){n=Number(String(n).replace(/[^0-9.\-]/g,""));if(isNaN(n)||n===0)return"";return"$"+Math.round(n).toLocaleString("es-MX");}
+function toast(m,w){var t=$("toast");t.textContent=m;t.className="on"+(w?" warn":"");setTimeout(function(){t.className="";},3400);}
+function badge(s,txt){var b=$("badge");b.setAttribute("data-s",s);$("badgeTxt").textContent=txt;}
+function claveGuardada(){try{return localStorage.getItem(KEY_STORE)||"";}catch(e){return"";}}
+function guardarClave(k){try{localStorage.setItem(KEY_STORE,k);}catch(e){}}
+function borrarClave(){try{localStorage.removeItem(KEY_STORE);}catch(e){}}
+
+function fetchGrupo(k,refrescar){
+  if(CONFIG.EXEC_URL.indexOf("https://script.google.com/")!==0){
+    var err=new Error("config");err.name="ConfigError";return Promise.reject(err);
+  }
+  var url=CONFIG.EXEC_URL+"?recurso=grupo&k="+encodeURIComponent(k)+(refrescar?"&refrescar=1":"")+"&cb="+Date.now();
+  var ctrl=new AbortController();var to=setTimeout(function(){ctrl.abort();},FETCH_TIMEOUT);
+  return fetch(url,{signal:ctrl.signal}).then(function(r){clearTimeout(to);return r.json();},function(e){clearTimeout(to);throw e;});
+}
+
+function errorRed(e){
+  if(e&&e.name==="ConfigError"){badge("error","sin configurar");toast("Falta pegar la URL /exec del despliegue en CONFIG.EXEC_URL",true);return;}
+  badge("error",e&&e.name==="AbortError"?"sin respuesta":"sin conexión");
+  toast(e&&e.name==="AbortError"?"El servidor tardó demasiado; toca el badge para reintentar":"No se pudo cargar el board",true);
+}
+
+function pedirClave(){
+  if($("gate"))return;
+  document.body.insertAdjacentHTML("beforeend",
+    '<div id="gate"><div class="box"><div class="serif" style="font-size:22px;">Alquimia Urbana</div>'+
+    '<div class="nota" style="margin-top:4px;">Board del grupo · acceso con clave</div>'+
+    '<input id="gKey" type="password" placeholder="Clave de acceso" autocomplete="off">'+
+    '<button class="btn" style="width:100%;" id="gBtn">Entrar</button></div></div>');
+  var entrar=function(){
+    var k=($("gKey").value||"").trim();
+    if(!k)return;
+    $("gBtn").disabled=true;$("gBtn").textContent="Verificando…";
+    fetchGrupo(k,false).then(function(d){
+      if(d.ok){
+        guardarClave(k);
+        var g=$("gate");g.parentNode.removeChild(g);
+        badge("live","en vivo");render(d);
+      }else{
+        $("gBtn").disabled=false;$("gBtn").textContent="Entrar";
+        toast(d.error==="clave"?"Clave incorrecta":"Error del servidor: "+(d.error||""),true);
+      }
+    }).catch(function(e){
+      $("gBtn").disabled=false;$("gBtn").textContent="Entrar";
+      errorRed(e);
+    });
+  };
+  $("gBtn").onclick=entrar;
+  $("gKey").addEventListener("keydown",function(ev){if(ev.key==="Enter")entrar();});
+  $("gKey").focus();
+}
+
+function cargar(refrescar){
+  var k=claveGuardada();
+  if(!k){pedirClave();return;}
+  badge("loading","cargando");
+  fetchGrupo(k,refrescar).then(function(d){
+    if(!d.ok){
+      if(d.error==="clave"){
+        borrarClave();badge("error","clave");
+        toast("La clave cambió en el Sheet Registro — vuelve a entrar",true);
+        $("app").innerHTML="";pedirClave();return;
+      }
+      badge("error","error");toast("Error del servidor: "+(d.error||""),true);return;
+    }
+    badge("live","en vivo");render(d);
+  }).catch(errorRed);
+}
+
+function claseProy(p){
+  if(p.live)return p.live.etapa==="Completado"?"verde":(p.live.urgentes>0?"rojo":"amar");
+  return "gris";
+}
+
+function render(d){
+  var h="";
+  var proys=d.proyectos||[];
+
+  h+='<h2 class="sec">Proyectos del grupo · '+proys.length+'</h2><div class="pgrid">';
+  if(!proys.length)h+='<div class="nota">Sin proyectos en el Registro todavía.</div>';
+  proys.forEach(function(p){
+    var L=p.live;
+    h+='<div class="pcard '+claseProy(p)+'">';
+    h+='<div><span class="olab">'+esc(p.tipo||"proyecto")+'</span><span class="olab">'+esc(p.empresa_lider||"")+'</span></div>';
+    h+='<h4>'+esc(p.nombre)+'</h4>';
+    if(p.ubicacion)h+='<div class="nota">'+esc(p.ubicacion)+'</div>';
+    var etapa=L?L.etapa:String(p.etapa||"");
+    if(etapa){
+      h+='<div class="fila">Etapa: <strong>'+esc(etapa)+'</strong>';
+      var pm2=L?money(L.precio_m2):"";
+      if(pm2)h+=' · '+pm2+'/m²';
+      h+=L?' <span class="olab">en vivo</span>':'';
+      h+='</div>';
+    }
+    if(L&&L.candados.total){
+      var pct=Math.round(L.candados.cerrados/L.candados.total*100);
+      h+='<div class="nota">Candados de la etapa · '+L.candados.cerrados+' de '+L.candados.total+' cerrados</div>'+
+         '<div class="progress"><i style="width:'+pct+'%;"></i></div>';
+    }
+    if(L&&L.conteos.total){
+      h+='<div class="nota">'+L.conteos.verde+' hechos · '+L.conteos.amar+' en proceso · '+L.conteos.rojo+' faltan'+
+         (L.urgentes?' · <span style="color:var(--rojo);">'+L.urgentes+' urgentes</span>':'')+'</div>';
+    }
+    if(L&&L.ultimo_cierre)h+='<div class="nota">Último cierre: '+esc(L.ultimo_cierre.nombre)+' · '+esc(L.ultimo_cierre.fecha)+'</div>';
+    var sig=L&&L.pendientes.length?L.pendientes[0].nombre:String(p.siguiente_paso||"");
+    if(sig)h+='<div class="fila">Sigue: '+esc(sig)+'</div>';
+    if(p.eta)h+='<div class="nota">ETA: '+esc(p.eta)+'</div>';
+    var pres=money(p.presupuesto),pag=money(p.pagado);
+    if(pres||pag)h+='<div class="nota">'+(pres?('Presupuesto '+pres):'')+(pres&&pag?' · ':'')+(pag?('pagado '+pag):'')+'</div>';
+    h+='<div class="btns">';
+    var bu=safeUrl(p.board_url);
+    if(bu)h+='<a class="btn" href="'+esc(bu)+'" target="_blank" rel="noopener">Abrir board</a>';
+    var cu=safeUrl(p.carpeta_drive_url);
+    if(cu)h+='<a class="btn ghost" href="'+esc(cu)+'" target="_blank" rel="noopener">Carpeta Drive</a>';
+    h+='</div></div>';
+  });
+  h+='</div>';
+
+  /* pendientes por responsable (solo proyectos en vivo) */
+  var porResp={};
+  proys.forEach(function(p){
+    if(!p.live)return;
+    p.live.pendientes.forEach(function(t){
+      var r=t.responsable||"Sin responsable";
+      (porResp[r]=porResp[r]||[]).push({proy:p.nombre,nombre:t.nombre,urgente:t.urgente});
+    });
+  });
+  var resps=Object.keys(porResp).sort();
+  if(resps.length){
+    h+='<h2 class="sec">Pendientes por responsable</h2><div class="card">';
+    resps.forEach(function(r){
+      h+='<div class="resprow"><strong>'+esc(r)+'</strong> · '+porResp[r].length+'<br>';
+      porResp[r].forEach(function(t){
+        h+='<div style="margin-top:4px;"><span class="ptag">'+esc(t.proy)+'</span>'+esc(t.nombre)+(t.urgente?' <span style="color:var(--rojo);">🔥 urgente</span>':'')+'</div>';
+      });
+      h+='</div>';
+    });
+    h+='</div>';
+  }
+
+  /* cómo se administra */
+  var extra=[];
+  var ru=d.config&&safeUrl(d.config.registro_url);
+  if(ru)extra.push('<a href="'+esc(ru)+'" target="_blank" rel="noopener">✎ abrir el Sheet Registro</a>');
+  var cru=d.config&&safeUrl(d.config.carpeta_raiz_url);
+  if(cru)extra.push('<a href="'+esc(cru)+'" target="_blank" rel="noopener">🗂 carpeta raíz en Drive</a>');
+  h+='<div class="hint">'+esc((d.config&&d.config.nota_uso)||"Este board se administra desde el Sheet Registro.")+(extra.length?('<br>'+extra.join(' · ')):'')+'</div>';
+
+  $("app").innerHTML=h;
+  $("stamp").textContent="Actualizado: "+(d.meta&&d.meta.actualizado?new Date(d.meta.actualizado).toLocaleString("es-MX"):"—");
+}
+
+$("badge").onclick=function(){cargar(true);};
+cargar(false);
+})();
+</script>
+</body>
+</html>
