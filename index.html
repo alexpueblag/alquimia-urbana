@@ -383,6 +383,9 @@ function pintarGantt(){
   b+='<div class="hoy" style="left:'+(labelw+X(plan.hoy))+'px;"><span>hoy</span></div>';
   b+='</div></div>';
   wrap.innerHTML=b;
+  /* abrir centrado en HOY (o en el tramite seleccionado) */
+  var foco=SEL_T&&visibles[SEL_T]?X(visibles[SEL_T]._ini):X(plan.hoy);
+  wrap.scrollLeft=Math.max(0,foco-(wrap.clientWidth-labelw)*0.42);
 
   Array.prototype.forEach.call(wrap.querySelectorAll("[data-t]"),function(el){
     el.onclick=function(ev){ev.stopPropagation();seleccionar(el.getAttribute("data-t"));};
