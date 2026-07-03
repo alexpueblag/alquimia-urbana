@@ -297,10 +297,15 @@ function filtrar(t){
   return true;
 }
 
-var NOMBRES_EXTRA={cond:"Condicionales — por decidir"};
 function pintarGantt(){
   var wrap=$("gwrap");if(!wrap)return;
   var p=(DATA.proyectos||[])[SEL_P];if(!p||!p.live)return;
+  /* nombres de paquetes fuera de la escalera: CONFIG.nombres_paquetes
+     del Sheet Registro ("id:Nombre|id2:Nombre2") — nada en código */
+  var NX={};
+  String((DATA.config&&DATA.config.nombres_paquetes)||"").split("|").forEach(function(par){
+    var i=par.indexOf(":");if(i>0)NX[par.slice(0,i).trim()]=par.slice(i+1).trim();
+  });
   var labelw=window.innerWidth<600?Math.max(96,Math.min(160,Math.round(window.innerWidth*0.32))):LABELW;
   var plan=planear(p.live.tramites.slice());
   var items=plan.items.filter(filtrar);
@@ -325,7 +330,7 @@ function pintarGantt(){
   /* filas */
   var filas=[],y=0;
   gkeys.forEach(function(g){
-    filas.push({tipo:"grp",id:g,nombre:nombres[g]||NOMBRES_EXTRA[g]||g,y:y});y+=GRPH;
+    filas.push({tipo:"grp",id:g,nombre:nombres[g]||NX[g]||g,y:y});y+=GRPH;
     grupos[g].forEach(function(t){t._y=y;filas.push({tipo:"t",t:t,y:y});y+=ROWH;});
   });
   var totalH=y;
