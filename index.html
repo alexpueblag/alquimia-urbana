@@ -271,7 +271,7 @@ function heroHTML(p,L,pm2){
   var cu=cuello(p.live.tramites.slice());
   var uc=L.ultimo_cierre||{};
   var dias=(uc.fecha&&pf(uc.fecha))?Math.floor((Date.now()-pf(uc.fecha).getTime())/DIA_MS):null;
-  var pres=nInt(p.presupuesto),pag=nInt(p.pagado),tieneDin=pres>0,pctDin=tieneDin?Math.round(pag/pres*100):0;
+  var pres=nInt(p.presupuesto),pag=nInt(p.pagado),tieneDin=pres>0,pctEx=tieneDin?(pag/pres*100):0,pctDin=pctEx<10?(Math.round(pctEx*10)/10):Math.round(pctEx);
   var h='<div class="auhero"><div class="auh-top"><span class="auh-ttl serif">'+esc(p.nombre)+' — ¿dónde estamos?</span>'+
     '<span class="auh-links">'+
     (safeUrl(p.board_url)?('<a href="'+esc(safeUrl(p.board_url))+'" target="_blank" rel="noopener">abrir board →</a>'):'')+
@@ -297,7 +297,7 @@ function heroHTML(p,L,pm2){
   if(tieneDin){
     h+='<div class="aubig">'+pctDin+'% <span class="aud">ejercido</span></div>'+
        '<div class="ausub">'+money(pag)+' de '+money(pres)+(pm2?(' · '+pm2+'/m²'):'')+'</div>'+
-       '<div class="aubar"><i style="width:'+Math.min(100,pctDin)+'%;"></i></div>';
+       '<div class="aubar"><i style="width:'+Math.max(1.5,Math.min(100,pctEx))+'%;"></i></div>';
   }else{
     h+='<div class="aubig sm">🔒 Por capturar</div>'+
        '<div class="ausub">llena <b>presupuesto</b> y <b>pagado</b> en el Sheet Registro para prender esta tarjeta'+(pm2?(' · valor '+pm2+'/m²'):'')+'</div>';
