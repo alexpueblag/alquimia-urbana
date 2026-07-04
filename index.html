@@ -11,6 +11,26 @@
 <style>
 /* ====== board grupal: gantt de trámites (solo presentación) ====== */
 main{max-width:1280px;}
+/* ---- hero "¿dónde estamos?" (tiempo + dinero, estilo Hormozi) ---- */
+.auhero{margin:14px 0 4px;}
+.auh-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px;flex-wrap:wrap;}
+.auh-ttl{font-size:20px;color:var(--marino,#0F1F3D);font-weight:600;}
+.auh-links{display:flex;gap:14px;font-size:12.5px;}
+.auh-links a{color:var(--oro,#B8954B);text-decoration:none;border-bottom:1px solid rgba(184,149,75,.35);}
+.augrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+@media(max-width:820px){.augrid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.augrid{grid-template-columns:1fr;}}
+.aucard{background:#fff;border:1px solid rgba(15,31,61,.10);border-radius:12px;padding:13px 14px;box-shadow:0 1px 2px rgba(15,31,61,.04);}
+.aucard .auk{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--oro,#B8954B);font-weight:600;margin-bottom:5px;}
+.aucard .aubig{font-family:'Cormorant Garamond',Georgia,serif;font-size:27px;line-height:1.05;color:var(--marino,#0F1F3D);font-weight:600;}
+.aucard .aubig.sm{font-size:16px;font-family:Inter,system-ui,sans-serif;font-weight:600;line-height:1.25;}
+.aucard .aubig .aud{font-size:15px;color:#8a8578;font-weight:500;}
+.aucard .ausub{font-size:12px;color:#5b5648;margin-top:5px;line-height:1.35;}
+.aucard .aubar{height:5px;border-radius:3px;background:rgba(15,31,61,.08);margin-top:9px;overflow:hidden;}
+.aucard .aubar i{display:block;height:100%;background:linear-gradient(90deg,var(--oro,#B8954B),var(--oroc,#C9A86A));}
+.aucard.cuello{cursor:pointer;border-color:rgba(180,83,9,.35);background:linear-gradient(180deg,#fff,#fff8f0);}
+.aucard.cuello:hover{border-color:var(--amar,#B45309);box-shadow:0 2px 8px rgba(180,83,9,.12);}
+.aucard.vacio{background:repeating-linear-gradient(135deg,#fff 0 10px,#faf7f0 10px 20px);border-style:dashed;}
 header{background:var(--negro);border-bottom:0;}
 header .logo{display:flex;align-items:center;gap:8px;}
 header .logo img{height:20px;filter:brightness(0) invert(1);opacity:.95;}
@@ -97,7 +117,7 @@ svg.garrows path.chain{stroke:var(--negro);stroke-width:2.2;}
 var CONFIG={EXEC_URL:"https://script.google.com/macros/s/AKfycbwIkonz5lbmtdQQw33foXc_5DRDwoTiuaJgoM7LQILtRN1lx9uFUAhb-jgJhCnRzfPQ/exec"};
 var KEY_STORE="au_clave_v1", FETCH_TIMEOUT=15000;
 var ROWH=32, GRPH=30, LABELW=270, HEADH=34, DIA_MS=86400000;
-var DATA=null, SEL_P=0, SEL_T=null, FILTRO="todos", PXD=2.4;
+var DATA=null, SEL_P=0, SEL_T=null, FILTRO="todos", PXD=2.4, _PLAN=null, _ETAPA_ID=null;
 
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
@@ -225,6 +245,67 @@ function cadena(por,items,id){ /* ancestros + descendientes */
   return set;
 }
 
+/* ---------- hero "¿dónde estamos?" ---------- */
+function nInt(v){v=Number(String(v==null?"":v).replace(/[^0-9.\-]/g,""));return isNaN(v)?0:v;}
+function cuello(tr){
+  /* el trámite pendiente que, al cerrarse, desbloquea MÁS río abajo
+     (la restricción de Goldratt/Hormozi: "empieza por el cuello") */
+  var por={},abajo={};
+  tr.forEach(function(t){por[t.id]=t;});
+  tr.forEach(function(t){String(t.dep||"").split(/[,;\s]+/).forEach(function(d){d=d.trim();if(d&&por[d])(abajo[d]=abajo[d]||[]).push(t.id);});});
+  function desc(id){var q=[id],vis={},n=0;while(q.length){var c=q.shift();(abajo[c]||[]).forEach(function(x){if(!vis[x]){vis[x]=true;n++;q.push(x);}});}return n;}
+  var best=null,bs=-1;
+  tr.forEach(function(t){
+    if(t.estado==="verde")return;
+    var n=desc(t.id),score=n*10+(t.urgente?5:0)+(t.estado==="amar"?1:0);
+    if(score>bs){bs=score;best=t;best._desc=n;}
+  });
+  return best;
+}
+function heroHTML(p,L,pm2){
+  var escl=L.escalera||[];
+  var stepAct=escl.filter(function(s){return s.nombre===L.etapa;})[0];
+  var ordenAct=stepAct?stepAct.orden:(escl.filter(function(s){return s.estado==="verde";}).length+1);
+  var totalEt=escl.length||6;
+  var pct=L.conteos.total?Math.round(L.conteos.verde/L.conteos.total*100):0;
+  var cu=cuello(p.live.tramites.slice());
+  var uc=L.ultimo_cierre||{};
+  var dias=(uc.fecha&&pf(uc.fecha))?Math.floor((Date.now()-pf(uc.fecha).getTime())/DIA_MS):null;
+  var pres=nInt(p.presupuesto),pag=nInt(p.pagado),tieneDin=pres>0,pctDin=tieneDin?Math.round(pag/pres*100):0;
+  var h='<div class="auhero"><div class="auh-top"><span class="auh-ttl serif">'+esc(p.nombre)+' — ¿dónde estamos?</span>'+
+    '<span class="auh-links">'+
+    (safeUrl(p.board_url)?('<a href="'+esc(safeUrl(p.board_url))+'" target="_blank" rel="noopener">abrir board →</a>'):'')+
+    (safeUrl(p.carpeta_drive_url)?('<a href="'+esc(safeUrl(p.carpeta_drive_url))+'" target="_blank" rel="noopener">carpeta Drive</a>'):'')+
+    '</span></div><div class="augrid">';
+  /* AVANCE */
+  h+='<div class="aucard"><div class="auk">Avance</div>'+
+     '<div class="aubig">Etapa '+ordenAct+' <span class="aud">/ '+totalEt+'</span></div>'+
+     '<div class="ausub">'+esc(L.etapa)+' · '+pct+'% trámites · 🔒 '+L.candados.cerrados+'/'+L.candados.total+' candados</div>'+
+     '<div class="aubar"><i style="width:'+Math.round(ordenAct/totalEt*100)+'%;"></i></div></div>';
+  /* CUELLO (la restricción) */
+  if(cu){
+    h+='<div class="aucard cuello" data-t="'+esc(cu.id)+'"><div class="auk">El cuello — empieza aquí</div>'+
+       '<div class="aubig sm">'+esc(cu.nombre)+'</div>'+
+       '<div class="ausub">desbloquea <b>'+(cu._desc||0)+'</b> trámites río abajo · '+(cu.estado==="amar"?"en proceso":"falta")+(cu.urgente?" · 🔥 urgente":"")+'</div></div>';
+  }
+  /* RITMO / última victoria */
+  h+='<div class="aucard"><div class="auk">Ritmo · última victoria</div>'+
+     '<div class="aubig">'+(dias!=null?('hace '+dias+' <span class="aud">días</span>'):'—')+'</div>'+
+     '<div class="ausub">'+(uc.nombre?esc(uc.nombre):'—')+' · en proceso '+L.conteos.amar+' · faltan '+L.conteos.rojo+(L.urgentes?(' · '+L.urgentes+' 🔥'):'')+'</div></div>';
+  /* DINERO */
+  h+='<div class="aucard'+(tieneDin?'':' vacio')+'"><div class="auk">Dinero</div>';
+  if(tieneDin){
+    h+='<div class="aubig">'+pctDin+'% <span class="aud">ejercido</span></div>'+
+       '<div class="ausub">'+money(pag)+' de '+money(pres)+(pm2?(' · '+pm2+'/m²'):'')+'</div>'+
+       '<div class="aubar"><i style="width:'+Math.min(100,pctDin)+'%;"></i></div>';
+  }else{
+    h+='<div class="aubig sm">🔒 Por capturar</div>'+
+       '<div class="ausub">llena <b>presupuesto</b> y <b>pagado</b> en el Sheet Registro para prender esta tarjeta'+(pm2?(' · valor '+pm2+'/m²'):'')+'</div>';
+  }
+  h+='</div></div></div>';
+  return h;
+}
+
 /* ---------- render ---------- */
 function pintar(){
   var d=DATA,proys=d.proyectos||[];
@@ -243,17 +324,9 @@ function pintar(){
   if(p){
     if(p.live){
       var L=p.live,pm2=money(L.precio_m2);
-      h+='<div class="resumen"><b>'+esc(p.nombre)+'</b>'+
-         '<span>Etapa: <strong>'+esc(L.etapa)+'</strong>'+(pm2?(' · '+pm2+'/m²'):'')+'</span>'+
-         '<span>Candados: '+L.candados.cerrados+'/'+L.candados.total+'</span>'+
-         '<span>'+L.conteos.verde+' hechos · '+L.conteos.amar+' en proceso · '+L.conteos.rojo+' faltan</span>'+
-         (L.urgentes?('<span style="color:var(--rojo);">'+L.urgentes+' urgentes</span>'):'')+
-         '<span class="sep" style="flex:1;"></span>'+
-         (safeUrl(p.board_url)?('<a href="'+esc(safeUrl(p.board_url))+'" target="_blank" rel="noopener">abrir board</a>'):'')+
-         (safeUrl(p.carpeta_drive_url)?('<a href="'+esc(safeUrl(p.carpeta_drive_url))+'" target="_blank" rel="noopener">carpeta Drive</a>'):'')+
-         '</div>';
+      h+=heroHTML(p,L,pm2);
       h+='<div class="gtools">'+
-         ['todos|Todos','banco|🏦 Banco','fisica|🏗 Física','faltan|Faltan','hechos|Hechos'].map(function(f){
+         ['todos|Todos','urgente|🔥 Urgente','atacable|⚡ Atacable','critica|◆ Ruta crítica','banco|🏦 Banco','fisica|🏗 Física','etapa|📍 Etapa','faltan|Faltan','hechos|Hechos'].map(function(f){
            var kv=f.split("|");
            return '<span class="chip'+(FILTRO===kv[0]?" on":"")+'" data-f="'+kv[0]+'">'+kv[1]+'</span>';
          }).join("")+
@@ -290,16 +363,24 @@ function pintar(){
   Array.prototype.forEach.call(document.querySelectorAll(".gtools .chip"),function(el){
     el.onclick=function(){FILTRO=el.getAttribute("data-f");SEL_T=null;cerrarDrawer();pintar();};
   });
+  var _cu=document.querySelector(".aucard.cuello[data-t]");
+  if(_cu){_cu.onclick=function(){seleccionar(_cu.getAttribute("data-t"));};}
   if($("zMas")){$("zMas").onclick=function(){PXD=Math.min(8,PXD*1.4);pintarGantt();};}
   if($("zMenos")){$("zMenos").onclick=function(){PXD=Math.max(.9,PXD/1.4);pintarGantt();};}
   pintarGantt();
 }
 
 function filtrar(t){
-  if(FILTRO==="banco")return t.rc==="banco";
-  if(FILTRO==="fisica")return t.rc==="fisica";
-  if(FILTRO==="faltan")return t.estado!=="verde";
-  if(FILTRO==="hechos")return t.estado==="verde";
+  switch(FILTRO){
+    case "urgente": return !!t.urgente;
+    case "atacable": return t.estado!=="verde" && !!t._deps && t._deps.every(function(d){return _PLAN&&_PLAN.por[d]&&_PLAN.por[d].estado==="verde";});
+    case "critica": return t.rc==="banco"||t.rc==="fisica";
+    case "banco": return t.rc==="banco";
+    case "fisica": return t.rc==="fisica";
+    case "etapa": return t.paquete===_ETAPA_ID;
+    case "faltan": return t.estado!=="verde";
+    case "hechos": return t.estado==="verde";
+  }
   return true;
 }
 
@@ -314,6 +395,9 @@ function pintarGantt(){
   });
   var labelw=window.innerWidth<600?Math.max(96,Math.min(160,Math.round(window.innerWidth*0.32))):LABELW;
   var plan=planear(p.live.tramites.slice());
+  _PLAN=plan;
+  var _ea=(p.live.escalera||[]).filter(function(s){return s.nombre===p.live.etapa;})[0];
+  _ETAPA_ID=_ea?_ea.id:null;
   var items=plan.items.filter(filtrar);
   if(!items.length){wrap.innerHTML='<div class="sinlive" style="border:0;">Sin trámites con este filtro.</div>';return;}
 
