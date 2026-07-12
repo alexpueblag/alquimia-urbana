@@ -125,7 +125,7 @@ function safeUrl(u){u=String(u==null?"":u).trim();return /^https:\/\//i.test(u)?
 function money(n){n=Number(String(n).replace(/[^0-9.\-]/g,""));if(isNaN(n)||n===0)return"";return"$"+Math.round(n).toLocaleString("es-MX");}
 function toast(m,w){var t=$("toast");t.textContent=m;t.className="on"+(w?" warn":"");setTimeout(function(){t.className="";},3400);}
 function badge(s,txt){var b=$("badge");b.setAttribute("data-s",s);$("badgeTxt").textContent=txt;}
-function claveGuardada(){try{return localStorage.getItem(KEY_STORE)||"";}catch(e){return"";}}
+function claveGuardada(){try{return localStorage.getItem(KEY_STORE)||localStorage.getItem("pyod_clave_v1")||"";}catch(e){return"";}}
 function guardarClave(k){try{localStorage.setItem(KEY_STORE,k);}catch(e){}}
 function borrarClave(){try{localStorage.removeItem(KEY_STORE);}catch(e){}}
 
@@ -544,5 +544,6 @@ window.addEventListener("resize",function(){clearTimeout(_rto);_rto=setTimeout(f
 if(claveGuardada())cargar(false);else pedirClave();
 })();
 </script>
+<script src="https://alexpueblag.github.io/potenciales-yod/portero.js" data-gate="suave"></script>
 </body>
 </html>
